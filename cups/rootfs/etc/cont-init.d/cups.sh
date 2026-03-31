@@ -12,6 +12,21 @@ mkdir -p /data/cups/config/ssl
 chown -R root:lp /data/cups
 chmod -R 775 /data/cups
 
+# Ensure NSS uses only local files to prevent CUPS hanging on user lookups
+cat > /etc/nsswitch.conf << 'EOF'
+passwd:    files
+group:     files
+shadow:    files
+hosts:     files dns
+networks:  files
+protocols: files
+services:  files
+EOF
+
+# Ensure the lp user and group exist (required for CUPS anonymous job ownership)
+getent group lp  > /dev/null 2>&1 || addgroup -S lp
+getent passwd lp > /dev/null 2>&1 || adduser -S -G lp -H -D lp
+
 # Create CUPS configuration directory if it doesn't exist
 mkdir -p /etc/cups
 
@@ -60,6 +75,7 @@ WebInterface Yes
 
 # Default settings
 DefaultAuthType None
+SystemGroup root
 JobSheets none,none
 PreserveJobHistory No
 EOL
