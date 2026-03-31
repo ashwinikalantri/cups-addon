@@ -126,14 +126,25 @@ fi
 # Auto-add Canon MF4412 via USB (auto-detected) or explicit URI if set
 CANON_URI=$(jq -r '.canon_mf4412_uri // empty' /data/options.json 2>/dev/null)
 
+# Load usblp module so CUPS USB backend can enumerate devices
+modprobe usblp 2>/dev/null || true
+
 # Start CUPS temporarily to query devices and run lpadmin
 /usr/sbin/cupsd
-sleep 2
+sleep 5
 
 if ! lpstat -p Canon-MF4412 > /dev/null 2>&1; then
     # If no URI given, detect the Canon USB device automatically
     if [ -z "$CANON_URI" ]; then
-        CANON_URI=$(lpinfo -v 2>/dev/null | grep -i "canon\|MF4412" | grep "^direct usb" | head -1 | awk '{print $2}')
+        # Retry detection up to 3 times to allow USB enumeration to complete
+        for i in 1 2 3; do
+            CANON_URI=$(lpinfo -v --timeout 10 2>/dev/null \
+                | grep -i "usb.*canon\|usb.*MF4" \
+                | head -1 | awk '{print $2}')
+            [ -n "$CANON_URI" ] && break
+            echo "USB detection attempt ${i}/3 failed, retrying..."
+            sleep 3
+        done
     fi
 
     if [ -n "$CANON_URI" ]; then
@@ -147,7 +158,9 @@ if ! lpstat -p Canon-MF4412 > /dev/null 2>&1; then
             -L "Auto-configured"
         echo "Canon MF4412 added."
     else
-        echo "Canon MF4412 USB device not detected. Check USB connection."
+        echo "Canon MF4412 USB device not detected. Check USB connection and that /dev/bus/usb is accessible."
+        echo "Available devices:"
+        lpinfo -v 2>/dev/null || true
     fi
 else
     echo "Canon MF4412 already configured, skipping."
