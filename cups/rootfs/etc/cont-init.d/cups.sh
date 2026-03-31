@@ -76,6 +76,8 @@ WebInterface Yes
 # Default settings
 DefaultAuthType None
 SystemGroup root
+HostNameLookups Off
+Browsing Off
 JobSheets none,none
 PreserveJobHistory No
 EOL
