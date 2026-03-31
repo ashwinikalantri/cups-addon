@@ -16,6 +16,8 @@ host_network: true
 map:
   - data:rw
   - share:rw
+devices:
+  - /dev/bus/usb
 init: false
 ports:
   631/tcp: 631

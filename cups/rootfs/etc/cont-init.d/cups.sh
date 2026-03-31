@@ -123,13 +123,20 @@ if ! [ -x /usr/lib/cups/filter/rastertoufr2 ]; then
     echo "  In the CUPS web interface select: 'Generic PCL 5e Printer' as the driver."
 fi
 
-# Auto-add Canon MF4412 via PCL5e if URI is configured
+# Auto-add Canon MF4412 via USB (auto-detected) or explicit URI if set
 CANON_URI=$(jq -r '.canon_mf4412_uri // empty' /data/options.json 2>/dev/null)
-if [ -n "$CANON_URI" ]; then
-    # Start CUPS temporarily to run lpadmin, then let it exit
-    /usr/sbin/cupsd
-    sleep 2
-    if ! lpstat -p Canon-MF4412 > /dev/null 2>&1; then
+
+# Start CUPS temporarily to query devices and run lpadmin
+/usr/sbin/cupsd
+sleep 2
+
+if ! lpstat -p Canon-MF4412 > /dev/null 2>&1; then
+    # If no URI given, detect the Canon USB device automatically
+    if [ -z "$CANON_URI" ]; then
+        CANON_URI=$(lpinfo -v 2>/dev/null | grep -i "canon\|MF4412" | grep "^direct usb" | head -1 | awk '{print $2}')
+    fi
+
+    if [ -n "$CANON_URI" ]; then
         echo "Adding Canon MF4412 at ${CANON_URI} using Generic PCL5e driver..."
         lpadmin \
             -p Canon-MF4412 \
@@ -140,11 +147,14 @@ if [ -n "$CANON_URI" ]; then
             -L "Auto-configured"
         echo "Canon MF4412 added."
     else
-        echo "Canon MF4412 already configured, skipping."
+        echo "Canon MF4412 USB device not detected. Check USB connection."
     fi
-    pkill cupsd 2>/dev/null || true
-    sleep 1
+else
+    echo "Canon MF4412 already configured, skipping."
 fi
+
+pkill cupsd 2>/dev/null || true
+sleep 1
 
 # Start CUPS service
 /usr/sbin/cupsd -f
