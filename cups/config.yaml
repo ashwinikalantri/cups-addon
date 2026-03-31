@@ -25,8 +25,10 @@ options:
   admin_username: "admin"
   admin_password: "admin"
   printer_driver_deb: ""
+  canon_mf4412_uri: ""
 schema:
   admin_username: str
   admin_password: password
   printer_driver_deb: str
+  canon_mf4412_uri: str
 startup: services

@@ -98,9 +98,35 @@ if [ -n "$DRIVER_DEB" ]; then
     fi
 fi
 
-# Verify printer drivers are available
-echo "Available printer drivers:"
-lpinfo -m 2>/dev/null | head -20 || echo "CUPS not yet running; drivers will be listed after start."
+# Warn if Canon UFR II filter is missing (not available on aarch64 Alpine)
+if ! [ -x /usr/lib/cups/filter/rastertoufr2 ]; then
+    echo "WARNING: Canon UFR II filter (rastertoufr2) is not available on this platform."
+    echo "  Canon MF4412 must be added using a generic PCL5e driver, not the UFR II driver."
+    echo "  In the CUPS web interface select: 'Generic PCL 5e Printer' as the driver."
+fi
+
+# Auto-add Canon MF4412 via PCL5e if URI is configured
+CANON_URI=$(jq -r '.canon_mf4412_uri // empty' /data/options.json 2>/dev/null)
+if [ -n "$CANON_URI" ]; then
+    # Start CUPS temporarily to run lpadmin, then let it exit
+    /usr/sbin/cupsd
+    sleep 2
+    if ! lpstat -p Canon-MF4412 > /dev/null 2>&1; then
+        echo "Adding Canon MF4412 at ${CANON_URI} using Generic PCL5e driver..."
+        lpadmin \
+            -p Canon-MF4412 \
+            -E \
+            -v "$CANON_URI" \
+            -m "drv:///sample.drv/generic.ppd" \
+            -D "Canon MF4412" \
+            -L "Auto-configured"
+        echo "Canon MF4412 added."
+    else
+        echo "Canon MF4412 already configured, skipping."
+    fi
+    pkill cupsd 2>/dev/null || true
+    sleep 1
+fi
 
 # Start CUPS service
 /usr/sbin/cupsd -f
