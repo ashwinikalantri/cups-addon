@@ -30,8 +30,10 @@ getent passwd lp > /dev/null 2>&1 || adduser -S -G lp -H -D lp
 # Create CUPS configuration directory if it doesn't exist
 mkdir -p /etc/cups
 
-# Basic CUPS configuration without admin authentication
-cat > /data/cups/config/cupsd.conf << EOL
+# Write cupsd.conf only on first run — preserves any manual changes across updates
+if [ ! -f /data/cups/config/cupsd.conf ]; then
+    echo "Writing default cupsd.conf..."
+    cat > /data/cups/config/cupsd.conf << EOL
 # Listen on all interfaces
 Listen 0.0.0.0:631
 
@@ -81,12 +83,18 @@ Browsing Off
 JobSheets none,none
 PreserveJobHistory No
 EOL
+fi
 
 # Create a symlink from the default config location to our persistent location
 ln -sf /data/cups/config/cupsd.conf /etc/cups/cupsd.conf
 ln -sf /data/cups/config/printers.conf /etc/cups/printers.conf
 ln -sf /data/cups/config/ppd /etc/cups/ppd
 ln -sf /data/cups/config/ssl /etc/cups/ssl
+
+# Restore previously persisted driver PPDs into the system location after a container update
+if [ -d /data/cups/driver-ppds ] && [ "$(ls -A /data/cups/driver-ppds)" ]; then
+    cp -r /data/cups/driver-ppds/. /usr/share/cups/model/
+fi
 
 # Install user-supplied printer driver .deb (e.g. Canon UFR II for MF4412)
 DRIVER_DEB=$(jq -r '.printer_driver_deb // empty' /data/options.json 2>/dev/null)
@@ -105,9 +113,11 @@ if [ -n "$DRIVER_DEB" ]; then
         if [ -d "${EXTRACT_DIR}/usr/lib" ]; then
             find "${EXTRACT_DIR}/usr/lib" -name "*.so*" -exec cp {} /usr/lib/ \;
         fi
-        # Copy PPD files
+        # Copy PPD files to both the system location and /data so they persist across updates
         if [ -d "${EXTRACT_DIR}/usr/share/cups/model" ]; then
             cp -r "${EXTRACT_DIR}/usr/share/cups/model/." /usr/share/cups/model/
+            mkdir -p /data/cups/driver-ppds
+            cp -r "${EXTRACT_DIR}/usr/share/cups/model/." /data/cups/driver-ppds/
         fi
         rm -rf "$EXTRACT_DIR"
         echo "Printer driver installed."
