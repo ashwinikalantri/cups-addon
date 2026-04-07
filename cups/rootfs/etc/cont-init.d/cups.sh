@@ -72,6 +72,23 @@ Listen 0.0.0.0:631
   Allow 192.168.0.0/16
 </Limit>
 
+<Policy default>
+  # This is the "magic" line that stops jobs from showing as anonymous
+  JobPrivateValues none
+  JobPrivateAccess all
+  
+  # Ensure document names are visible too
+  DisplayAllowedJobAttributes all
+
+  <Limit All>
+    Order deny,allow
+    Allow localhost
+    Allow 10.0.0.0/8
+    Allow 172.16.0.0/12
+    Allow 192.168.0.0/16
+  </Limit>
+</Policy>
+
 # Enable web interface
 WebInterface Yes
 
